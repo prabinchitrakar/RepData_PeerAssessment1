@@ -5,21 +5,84 @@ output:
     keep_md: true
 ---
 
-
 ## Loading and preprocessing the data
-
-
+### Unzipping, if data file not already present
+```{r, results='markup', warning=TRUE, echo=TRUE}
+if(!file.exists('activity.csv')){
+    unzip('activity.zip')
+}
+```
+### Loading the dataset from file
+```{r, results='markup', warning=TRUE, echo=TRUE}
+activityData <- read.csv('activity.csv')
+```
 
 ## What is mean total number of steps taken per day?
+### Histogram of the total number of steps taken each day
+```{r, results='markup', warning=TRUE, echo=TRUE}
+stepsPerDay <- tapply(activityData$steps, activityData$date, sum, na.rm=TRUE)
+hist(stepsPerDay, breaks=seq(from=0, to=25000, by=1000),
+     main='Histogram: Total number of steps taken each day',
+     xlab='Total steps/day', 
+     ylab='Frequency',
+     col="blue")
+```
 
-
+### Mean and median number of steps taken each day
+```{r, results='markup', warning=TRUE, echo=TRUE}
+stepsPerDayMean   <- mean(stepsPerDay)
+stepsPerDayMedian <- median(stepsPerDay)
+```
+* Mean:    `r stepsPerDayMean`
+* Median:  `r stepsPerDayMedian`
 
 ## What is the average daily activity pattern?
+```{r, results='markup', warning=TRUE, echo=TRUE}
+avgStepsPerInterval <- aggregate(x=list(meanSteps = activityData$steps),
+                                 by=list(interval  = activityData$interval),
+                                 FUN=mean, na.rm=TRUE)
+library(ggplot2)
+ggplot(data=avgStepsPerInterval, aes(x=interval, y=meanSteps)) +
+  geom_line() +
+  xlab("interval") +
+  ylab("average steps/day")  
+```
 
-
+### The 5-minute interval that, on average, contains the maximum number of steps
+```{r, results='markup', warning=TRUE, echo=TRUE}
+maxStepIndex   <- which.max(avgStepsPerInterval$meanSteps)
+maxStepTimeRaw <- avgStepsPerInterval[maxStepIndex,'interval']
+maxStepTimeFormatted <- gsub("([0-9]{1,2})([0-9]{2})", "\\1:\\2", maxStepTimeRaw)
+```
+* Interval = `r  maxStepTimeFormatted`
 
 ## Imputing missing values
+Missing values are filled with the average of the corresponding interval
+```{r, results='markup', warning=TRUE, echo=TRUE}
+imputedData  <- activityData
+invalidIndex <- is.na(imputedData$steps)
+mergedData   <- merge(imputedData[invalidIndex, ], avgStepsPerInterval, by = "interval")
+imputedData[invalidIndex,]$steps <- mergedData$meanSteps
+```
+*Number of obervations with missing values: `r sum(invalidIndex)`
 
-
+### Histogram of the total number of steps taken each day after missing values are imputed
+```{r, results='markup', warning=TRUE, echo=TRUE}
+imputedStepsPerDay <- tapply(imputedData$steps, imputedData$date, sum)
+hist(imputedStepsPerDay, breaks=seq(from=0, to=25000, by=1000),
+     main='Histogram: Total number of steps taken each day (Missing Data imputed)',
+     xlab='Total steps/day', 
+     ylab='Frequency',
+     col="blue")
+```
 
 ## Are there differences in activity patterns between weekdays and weekends?
+```{r, results='markup', warning=TRUE, echo=TRUE}
+imputedData$dayType <- ifelse(as.POSIXlt(imputedData$date)$wday %in% c(0,6), 'Weekend', 'Weekday')
+avgImputedbyDayType <- aggregate(steps ~ interval + dayType, data=imputedData, mean)
+ggplot(avgImputedbyDayType, aes(interval, steps)) + 
+  geom_line() + 
+  facet_grid(dayType ~ .) +
+  xlab("interval") + 
+  ylab("average(steps)")
+```
